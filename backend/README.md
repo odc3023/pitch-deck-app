@@ -1,37 +1,34 @@
-# Pitch Deck Backend
-
-This is the backend for the AI-powered pitch deck platform, built with NestJS, PostgreSQL,Firebase Auth, and OpenAI GPT-4. 
-It powers pitch deck creation, slide management, AI content generation, and exporting to PDF or PPTX.
+**Pitch Deck Frontend**
+---
+This is the frontend for the AI-powered pitch deck platform, built with React, Vite, Firebase Auth, and Tailwind CSS. It provides an intuitive interface for creating, editing, and managing AI-generated pitch decks with real-time collaboration features.
 
 ---
 
 ## Features
-
-- AI-generated pitch decks and slide content using GPT-4
-- Firebase-secured user authentication
-- Full CRUD for decks and slides
-- AI image suggestions and speaker notes
-- Export decks as PDF or PowerPoint (PPTX)
-- Built with NestJS + TypeORM + PostgreSQL
-- Modular, production-ready architecture
+- AI Deck Generation - Create complete pitch decks using GPT-4
+- Interactive Slide Editor - Rich text editing with real-time preview
+- AI Assistant Chatbot - Get content suggestions and improvements
+- Slide Management - Drag-and-drop reordering and CRUD operations
+- Export Options - Download as PDF or PowerPoint (PPTX)
+- Firebase Authentication - Secure user management
+- Responsive Design - Works on desktop, tablet, and mobile
+- Real-time Updates - Live editing and saving
 
 ---
 
 ## Prerequisites
-
 - Node.js (v18+)
-- PostgreSQL (v13+)
+- npm or yarn
 - Firebase project with Authentication enabled
-- OpenAI API key
+- Backend API server running
 
 ---
 
 ## Installation & Setup
 
-```bash
 # Clone the repo
-git clone https://github.com/odc3023/pitch-deck-app.git
-cd pitch-deck-app/backend
+- git clone https://github.com/odc3023/pitch-deck-app.git
+- cd pitch-deck-app
 
 # Install dependencies
 npm install
@@ -39,37 +36,39 @@ npm install
 # Copy env config
 cp .env.example .env
 
-**## Update .env with your configuration**
+---
+## Configure .env file
 
-**Configure .env file**
+# API Configuration
+VITE_API_URL=http://localhost:3000
 
-# Database
-DATABASE_HOST=localhost
-DATABASE_PORT=5432
-DATABASE_USERNAME=postgres
-DATABASE_PASSWORD=your_password
-DATABASE_NAME=pitch_deck_db
+# Firebase Configuration
+- VITE_FIREBASE_API_KEY=your_firebase_api_key
+- VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+- VITE_FIREBASE_PROJECT_ID=your_project_id
+- VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+- VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+- VITE_FIREBASE_APP_ID=your_app_id
 
-# Firebase (from Service Account)
-FIREBASE_PROJECT_ID=your_project_id
-FIREBASE_CLIENT_EMAIL=your_client_email
-FIREBASE_PRIVATE_KEY=
+**Firebase Setup**
+- Create a Firebase project at https://console.firebase.google.com
+- Enable Authentication with Email/Password provider
+- Get your Firebase config from Project Settings
+- Add your domain to authorized domains in Authentication settings
 
-# OpenAI
-OPENAI_API_KEY=sk-your-key
 
-# App
-PORT=3000
-NODE_ENV=development
+--- 
+## Running the Application
 
-**Database**
-createdb pitch_deck_db
-pg_dump -U postgres -d pitch_deck_db > pitch_deck_db_dump.sql
+# Development server
+npm run dev
 
-**Running the Server**
-# Development
-npm run start:dev
-
-# Production
+# Build for production
 npm run build
-npm start
+
+# Preview production build
+npm run preview
+
+# Run linting
+npm run lint
+

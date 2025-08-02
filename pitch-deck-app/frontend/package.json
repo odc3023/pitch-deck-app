@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node ./node_modules/@nestjs/cli/bin/nest.js build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start:prod": "node dist/main"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.6",
