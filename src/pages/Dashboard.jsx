@@ -1,178 +1,250 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Plus, FileText, Calendar, MoreVertical, Edit, Trash2, Download } from 'lucide-react'
-import DeckGrid from '../components/Dashboard/DeckGrid';
-
-// Mock data for development
-const mockDecks = [
-  {
-    id: '1',
-    title: 'TechStart AI Platform',
-    description: 'Revolutionary AI platform for small businesses',
-    slideCount: 12,
-    createdAt: '2024-01-15',
-    updatedAt: '2024-01-20',
-    thumbnail: 'bg-gradient-to-br from-blue-500 to-purple-600'
-  },
-  {
-    id: '2', 
-    title: 'GreenEnergy Solutions',
-    description: 'Sustainable energy for the future',
-    slideCount: 8,
-    createdAt: '2024-01-10',
-    updatedAt: '2024-01-18',
-    thumbnail: 'bg-gradient-to-br from-green-500 to-teal-600'
-  },
-  {
-    id: '3',
-    title: 'HealthTech Mobile App',
-    description: 'Connecting patients with healthcare providers',
-    slideCount: 15,
-    createdAt: '2024-01-05',
-    updatedAt: '2024-01-17',
-    thumbnail: 'bg-gradient-to-br from-red-500 to-pink-600'
-  },
-  {
-    id: '4',
-    title: 'EduLearn Platform',
-    description: 'Online learning made interactive and fun',
-    slideCount: 10,
-    createdAt: '2024-01-01',
-    updatedAt: '2024-01-15',
-    thumbnail: 'bg-gradient-to-br from-orange-500 to-yellow-600'
-  }
-]
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
+import { deckAPI } from '../utils/api';
+import { FiEye, FiEdit, FiTrash2, FiLoader, FiCalendar, FiUser, FiPlus } from 'react-icons/fi';
+import { toast } from 'react-hot-toast';
 
 const Dashboard = () => {
-  const navigate = useNavigate()
-  const [activeDropdown, setActiveDropdown] = useState(null)
+  const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
+  const [decks, setDecks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Load user's decks when component mounts
+  useEffect(() => {
+    const fetchUserDecks = async () => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        
+        const response = await deckAPI.getAll();
+        const userDecks = response.data?.data || response.data || [];
+        
+        setDecks(userDecks);
+        setError(null);
+      } catch (error) {
+        setError('Failed to load your decks');
+        setDecks([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (!authLoading) {
+      fetchUserDecks();
+    }
+  }, [user, authLoading]);
 
   const handleCreateNew = () => {
-    navigate('/editor')
-  }
+    navigate('/generate');
+  };
+
+  const handleViewDeck = (deckId) => {
+    navigate(`/editor/${deckId}`);
+  };
 
   const handleEditDeck = (deckId) => {
-    navigate(`/editor/${deckId}`)
-    setActiveDropdown(null)
-  }
+    navigate(`/editor/${deckId}`);
+  };
 
-  const handleDeleteDeck = (deckId) => {
-    // TODO: Implement delete functionality
-    console.log('Delete deck:', deckId)
-    setActiveDropdown(null)
-  }
+  const handleDeleteDeck = async (deckId) => {
+    if (!window.confirm('Are you sure you want to delete this deck?')) {
+      return;
+    }
 
-  const handleExportDeck = (deckId) => {
-    // TODO: Implement export functionality
-    console.log('Export deck:', deckId)
-    setActiveDropdown(null)
-  }
+    try {
+      await deckAPI.delete(deckId);
+      setDecks(prevDecks => prevDecks.filter(deck => deck.id !== deckId));
+      toast.success('Deck deleted successfully');
+    } catch (error) {
+      toast.error('Failed to delete deck');
+    }
+  };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    })
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch (error) {
+      return 'Unknown date';
+    }
+  };
+
+  const getSlideCount = (deck) => {
+    if (!deck.slides) return 0;
+    
+    try {
+      if (Array.isArray(deck.slides)) {
+        return deck.slides.length;
+      }
+      
+      if (typeof deck.slides === 'string') {
+        const slides = JSON.parse(deck.slides);
+        return Array.isArray(slides) ? slides.length : 0;
+      }
+      
+      if (typeof deck.slides === 'object' && deck.slides.length !== undefined) {
+        return deck.slides.length;
+      }
+      
+      if (typeof deck.slides === 'object') {
+        return Object.keys(deck.slides).length;
+      }
+      
+      return 0;
+    } catch (error) {
+      return 0;
+    }
+  };
+
+  // loading state
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <FiLoader className="h-8 w-8 animate-spin mx-auto mb-4 text-indigo-600" />
+          <p className="text-gray-600">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // auth required state
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Please Log In</h2>
+          <p className="text-gray-600 mb-6">You need to be logged in to view your pitch decks.</p>
+          <button
+            onClick={() => navigate('/login')}
+            className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            Go to Login
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="max-w-7xl mx-auto">
-      {/* Header Section */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">My Pitch Decks</h1>
-          <p className="text-gray-600">Create and manage your AI-powered pitch decks</p>
-        </div>
-        
-        <button
-          onClick={handleCreateNew}
-          className="mt-4 sm:mt-0 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 font-medium shadow-md"
-        >
-          <Plus size={20} />
-          Create New Deck
-        </button>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Decks</p>
-              <p className="text-2xl font-bold text-gray-800">{mockDecks.length}</p>
-            </div>
-            <div className="p-3 bg-blue-50 rounded-full">
-              <FileText className="text-blue-600" size={24} />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Slides</p>
-              <p className="text-2xl font-bold text-gray-800">
-                {mockDecks.reduce((sum, deck) => sum + deck.slideCount, 0)}
-              </p>
-            </div>
-            <div className="p-3 bg-green-50 rounded-full">
-              <Calendar className="text-green-600" size={24} />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Recent Activity</p>
-              <p className="text-2xl font-bold text-gray-800">
-                {formatDate(Math.max(...mockDecks.map(d => new Date(d.updatedAt))))}
-              </p>
-            </div>
-            <div className="p-3 bg-purple-50 rounded-full">
-              <Edit className="text-purple-600" size={24} />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {mockDecks.length === 0 ? (
-        // Empty State
-        <div className="bg-white rounded-lg shadow-md p-12 text-center">
-          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <FileText className="text-gray-400" size={32} />
-          </div>
-          <h3 className="text-xl font-semibold text-gray-800 mb-2">No pitch decks yet</h3>
-          <p className="text-gray-600 mb-6">
-            Get started by creating your first AI-powered pitch deck
+    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-extrabold text-gray-900">
+            Your Pitch Decks
+          </h1>
+          <p className="mt-2 text-gray-600">
+            Manage your pitch decks and create new presentations
           </p>
-          <button
-            onClick={handleCreateNew}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center gap-2"
-          >
-            <Plus size={20} />
-            Create Your First Deck
-          </button>
         </div>
-      ) : (
-        <DeckGrid
-          decks={mockDecks}
-          onEdit={handleEditDeck}
-          onDelete={handleDeleteDeck}
-          onExport={handleExportDeck}
-        />
-      )}
 
-      {/* Click outside to close dropdown */}
-      {activeDropdown && (
-        <div 
-          className="fixed inset-0 z-40"
-          onClick={() => setActiveDropdown(null)}
-        />
-      )}
+        {/* Error State */}
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
+            <div className="flex">
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">Error</h3>
+                <p className="mt-2 text-sm text-red-700">{error}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Decks Grid */}
+        {decks.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="mx-auto h-24 w-24 text-gray-400">
+              <FiUser className="h-full w-full" />
+            </div>
+            <h3 className="mt-4 text-lg font-medium text-gray-900">No pitch decks yet</h3>
+            <p className="mt-2 text-gray-500">
+              Get started by creating your first AI-powered pitch deck
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {decks.map((deck) => (
+              <div
+                key={deck.id}
+                className="bg-white overflow-hidden shadow rounded-lg hover:shadow-md transition-shadow duration-200"
+              >
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-medium text-gray-900 truncate">
+                      {deck.title || 'Untitled Deck'}
+                    </h3>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleViewDeck(deck.id)}
+                        className="p-2 text-gray-400 hover:text-indigo-600 transition-colors"
+                        title="View deck"
+                      >
+                        <FiEye className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleEditDeck(deck.id)}
+                        className="p-2 text-gray-400 hover:text-indigo-600 transition-colors"
+                        title="Edit deck"
+                      >
+                        <FiEdit className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteDeck(deck.id)}
+                        className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                        title="Delete deck"
+                      >
+                        <FiTrash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                    {deck.description || 'No description available'}
+                  </p>
+                  
+                  <div className="flex items-center justify-between text-sm text-gray-500">
+                    <div className="flex items-center">
+                      <FiCalendar className="h-4 w-4 mr-1" />
+                      {formatDate(deck.createdAt || deck.created_at)}
+                    </div>
+                    <span>{getSlideCount(deck)} slides</span>
+                  </div>
+                </div>
+                
+                <div className="bg-gray-50 px-6 py-3">
+                  <div className="flex space-x-3">
+                    <button
+                      onClick={() => handleEditDeck(deck.id)}
+                      className="flex-1 bg-white border border-gray-300 rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleViewDeck(deck.id)}
+                      className="flex-1 bg-indigo-600 border border-transparent rounded-md px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    >
+                      Open
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
-  )
-}
+  );
+};
 
-export default Dashboard
+export default Dashboard;

@@ -4,47 +4,75 @@ const SlideSidebar = ({ slides, activeIndex, onSelectSlide, onReorderSlides }) =
   const handleDragEnd = (result) => {
     if (!result.destination) return;
 
+    const sourceIndex = result.source.index;
+    const destinationIndex = result.destination.index;
+
+    if (sourceIndex === destinationIndex) return;
+
     const reordered = Array.from(slides);
-    const [movedSlide] = reordered.splice(result.source.index, 1);
-    reordered.splice(result.destination.index, 0, movedSlide);
+    const [movedSlide] = reordered.splice(sourceIndex, 1);
+    reordered.splice(destinationIndex, 0, movedSlide);
 
     onReorderSlides(reordered);
   };
 
   return (
-    <div className="w-64 border-r bg-gray-50 p-4 overflow-y-auto">
-      <h2 className="text-lg font-bold mb-4">Slides</h2>
-
+    <div className="flex-1 overflow-y-auto p-4">
+      <h3 className="text-sm font-medium text-gray-700 mb-3">Slides</h3>
       <DragDropContext onDragEnd={handleDragEnd}>
-        <Droppable droppableId="slides">
-          {(provided) => (
-            <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2">
-              {slides.map((slide, index) => (
-                <Draggable key={slide.id} draggableId={slide.id} index={index}>
-                  {(provided, snapshot) => (
-                    <div
-                      ref={provided.innerRef}
-                      {...provided.draggableProps}
-                      {...provided.dragHandleProps}
-                      onClick={() => onSelectSlide(index)}
-                      className={`p-3 mb-2 rounded cursor-pointer select-none transition-all min-h-[48px] bg-white ${
-                        index === activeIndex
-                          ? 'bg-blue-100 text-blue-800 font-semibold'
-                          : 'bg-white text-gray-800'
-                      } ${snapshot.isDragging ? 'shadow-lg scale-105 ring-2 ring-blue-400' : ''}`}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') onSelectSlide(index);
-                      }}
-                      aria-pressed={index === activeIndex}
-                      aria-label={slide.title || `Slide ${index + 1}`}
-                    >
-                      {slide.title || `Slide ${index + 1}`}
-                    </div>
-                  )}
-                </Draggable>
-              ))}
+        <Droppable
+          droppableId="slides"
+          isDropDisabled={false}
+          isCombineEnabled={false}
+          ignoreContainerClipping={false}
+        >
+          {(provided, snapshot) => (
+            <div
+              ref={provided.innerRef}
+              {...provided.droppableProps}
+              className="space-y-2"
+            >
+              {slides.map((slide, index) => {
+                // Create truly unique key by combining slide.id with index
+                const uniqueKey = slide.id
+                  ? `${slide.id}-${index}`
+                  : `slide-${index}-${Date.now()}`;
+                const draggableId = slide.id || `slide-${index}-${Date.now()}`;
+
+                return (
+                  <Draggable
+                    key={uniqueKey}
+                    draggableId={draggableId}
+                    index={index}
+                    isDragDisabled={false}
+                  >
+                    {(provided, snapshot) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.draggableProps}
+                        {...provided.dragHandleProps}
+                        onClick={() => onSelectSlide(index)}
+                        className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                          index === activeIndex
+                            ? 'bg-blue-100 border-2 border-blue-300 text-blue-800'
+                            : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                        } ${
+                          snapshot.isDragging
+                            ? 'shadow-lg rotate-2 scale-105'
+                            : 'shadow-sm'
+                        }`}
+                      >
+                        <div className="text-sm font-medium truncate">
+                          {slide.title || `Slide ${index + 1}`}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1 truncate">
+                          {slide.content?.substring(0, 50)}...
+                        </div>
+                      </div>
+                    )}
+                  </Draggable>
+                );
+              })}
               {provided.placeholder}
             </div>
           )}

@@ -1,77 +1,150 @@
-import { createContext, useState, useEffect } from 'react'
-import { api } from '../utils/api'
+import { createContext, useContext, useEffect, useState } from 'react';
+import { auth } from '../firebase';
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  updateProfile,
+} from 'firebase/auth';
+import { userAPI } from '../utils/api'; 
 
-export const AuthContext = createContext({})
+export const AuthContext = createContext();
 
-
+/**
+ * AuthProvider Component
+ * Manages user authentication state and provides auth methods throughout the app
+ * Handles Firebase authentication and syncs user data with backend
+ */
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Check if user is logged in on app start
-  useEffect(() => {
-    checkAuthStatus()
-  }, [])
-
-  const checkAuthStatus = async () => {
+  /**
+   * Syncs Firebase user data with backend database
+   * Creates or updates user record in backend when auth state changes
+   */
+  const syncUserWithBackend = async (firebaseUser) => {
     try {
-      const token = localStorage.getItem('token')
-      if (!token) {
-        setLoading(false)
-        return
-      }
-
-      const response = await api.get('/auth/me')
-      setUser(response.data.user)
+      const userData = {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        displayName: firebaseUser.displayName || null
+      };
+      
+      const response = await userAPI.syncUser(userData);
+      return response.data;
     } catch (error) {
-      console.error('Auth check failed:', error)
-      localStorage.removeItem('token') // Remove invalid token
-    } finally {
-      setLoading(false)
+      // Silent fail - user can still use app even if backend sync fails
+      return null;
     }
-  }
+  };
 
+  /**
+   * Listen for Firebase auth state changes
+   * Automatically syncs user with backend when authenticated
+   */
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        await syncUserWithBackend(firebaseUser);
+      }
+      setUser(firebaseUser);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  /**
+   * Handles user login with email and password
+   * Returns success status and error message if failed
+   */
   const login = async (email, password) => {
     try {
-      setError(null)
-      const response = await api.post('/auth/login', { email, password })
+      setError(null);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
       
-      const { token, user } = response.data
-      localStorage.setItem('token', token)
-      setUser(user)
+      // Sync with backend after successful login
+      await syncUserWithBackend(userCredential.user);
       
-      return { success: true }
-    } catch (error) {
-      const message = error.response?.data?.message || 'Login failed'
-      setError(message)
-      return { success: false, error: message }
+      return { success: true };
+    } catch (err) {
+      const message = err.message || 'Login failed';
+      setError(message);
+      return { success: false, error: message };
     }
-  }
+  };
 
-  const register = async (name, email, password) => {
+  /**
+   * Handles user registration with email, password, and display name
+   * Creates Firebase account, updates profile, and syncs with backend
+   */
+  const register = async (email, password, name) => {
     try {
-      setError(null)
-      const response = await api.post('/auth/register', { name, email, password })
+      setError(null);
       
-      const { token, user } = response.data
-      localStorage.setItem('token', token)
-      setUser(user)
+      // Create user account in Firebase
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const currentUser = userCredential.user;
       
-      return { success: true }
-    } catch (error) {
-      const message = error.response?.data?.message || 'Registration failed'
-      setError(message)
-      return { success: false, error: message }
+      // Update Firebase profile with display name
+      await updateProfile(currentUser, {
+        displayName: name,
+      });
+      
+      // Sync new user with backend database
+      await syncUserWithBackend(currentUser);
+      
+      setUser(currentUser);
+      return { success: true };
+    } catch (err) {
+      const message = err.message || 'Registration failed';
+      setError(message);
+      return { success: false, error: message };
     }
-  }
+  };
 
-  const logout = () => {
-    localStorage.removeItem('token')
-    setUser(null)
-    setError(null)
-  }
+  /**
+   * Handles user logout
+   * Signs out from Firebase and clears local state
+   */
+  const logout = async () => {
+    await signOut(auth);
+    setUser(null);
+    setError(null);
+  };
 
+  /**
+   * Updates user profile information in backend
+   * Used for profile settings and user preferences
+   */
+  const updateUserProfile = async (userData) => {
+    try {
+      const response = await userAPI.updateProfile(userData);
+      return { success: true, data: response.data };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  /**
+   * Deletes user account from both Firebase and backend
+   * Permanently removes all user data
+   */
+  const deleteAccount = async () => {
+    try {
+      await userAPI.deleteAccount();
+      await signOut(auth);
+      setUser(null);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  // Context value object containing all auth state and methods
   const value = {
     user,
     loading,
@@ -79,12 +152,26 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
-    isAuthenticated: !!user
-  }
+    updateUserProfile,
+    deleteAccount,
+    isAuthenticated: !!user,
+  };
 
   return (
     <AuthContext.Provider value={value}>
-      {children}
+      {!loading && children}
     </AuthContext.Provider>
-  )
-}
+  );
+};
+
+/**
+ * Custom hook to use auth context
+ * Provides easy access to auth state and methods in components
+ */
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};

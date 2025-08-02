@@ -1,42 +1,69 @@
-// pages/Login.jsx
-import { useState } from 'react'
-import { useAuth } from '../hooks/useAuth'
-import { Navigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, Link, useLocation } from 'react-router-dom'
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
+import app from '../firebase';
 
-const Login = () => {
-  const { login, register, isAuthenticated, error } = useAuth()
-  const [isLogin, setIsLogin] = useState(true)
+const Login = ({ isLogin = true }) => {
+  const auth = getAuth(app);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [user, setUser] = useState(null);
+  const [hasNavigated, setHasNavigated] = useState(false);
+  
+  const isLoginMode = location.pathname === '/login' || isLogin;
+  
   const [formData, setFormData] = useState({
-    name: '',
     email: '',
     password: ''
   })
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  // Redirect if already logged in
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />
-  }
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser && !hasNavigated) {
+        setUser(firebaseUser);
+        setHasNavigated(true);
+        setTimeout(() => {
+          navigate('/dashboard', { replace: true });
+        }, 100);
+      } else if (!firebaseUser) {
+        setUser(null);
+        setHasNavigated(false);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [navigate, hasNavigated]);
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
+    setError(null)
 
     try {
-      let result
-      if (isLogin) {
-        result = await login(formData.email, formData.password)
+      if (isLoginMode) {
+        await signInWithEmailAndPassword(auth, formData.email, formData.password);
       } else {
-        result = await register(formData.name, formData.email, formData.password)
-      }
-
-      if (result.success) {
-        // Redirect will happen automatically via AuthContext
+        await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       }
     } catch (error) {
-      console.error('Auth error:', error)
-    } finally {
-      setLoading(false)
+      let errorMessage = error.message;
+      if (error.code === 'auth/user-not-found') {
+        errorMessage = 'No account found with this email address.';
+      } else if (error.code === 'auth/wrong-password') {
+        errorMessage = 'Incorrect password.';
+      } else if (error.code === 'auth/email-already-in-use') {
+        errorMessage = 'An account with this email already exists.';
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = 'Password should be at least 6 characters.';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Please enter a valid email address.';
+      }
+      
+      setError(errorMessage);
+      setLoading(false);
     }
   }
 
@@ -47,13 +74,33 @@ const Login = () => {
     }))
   }
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
+  if (user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">PitchDeck AI</h1>
+          <Link to="/" className="inline-block">
+            <h1 className="text-3xl font-bold text-gray-800 mb-2 hover:text-indigo-600 transition-colors">
+              PitchDeck AI
+            </h1>
+          </Link>
           <p className="text-gray-600">
-            {isLogin ? 'Sign in to your account' : 'Create your account'}
+            {isLoginMode ? 'Sign in to your account' : 'Create your account'}
           </p>
         </div>
 
@@ -64,23 +111,6 @@ const Login = () => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {!isLogin && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Full Name
-              </label>
-              <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-                required={!isLogin}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter your full name"
-              />
-            </div>
-          )}
-
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Email Address
@@ -91,7 +121,7 @@ const Login = () => {
               value={formData.email}
               onChange={handleChange}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               placeholder="Enter your email"
             />
           </div>
@@ -106,27 +136,42 @@ const Login = () => {
               value={formData.password}
               onChange={handleChange}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter your password"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              placeholder={isLoginMode ? "Enter your password" : "At least 6 characters"}
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Please wait...' : (isLogin ? 'Sign In' : 'Create Account')}
+            {loading ? 'Please wait...' : (isLoginMode ? 'Sign In' : 'Create Account')}
           </button>
         </form>
 
         <div className="mt-6 text-center">
-          <button
-            onClick={() => setIsLogin(!isLogin)}
-            className="text-blue-600 hover:text-blue-700 text-sm"
-          >
-            {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
-          </button>
+          {isLoginMode ? (
+            <p className="text-sm text-gray-600">
+              Don't have an account?{' '}
+              <Link 
+                to="/register" 
+                className="text-indigo-600 hover:text-indigo-700 font-medium"
+              >
+                Sign up
+              </Link>
+            </p>
+          ) : (
+            <p className="text-sm text-gray-600">
+              Already have an account?{' '}
+              <Link 
+                to="/login" 
+                className="text-indigo-600 hover:text-indigo-700 font-medium"
+              >
+                Sign in
+              </Link>
+            </p>
+          )}
         </div>
       </div>
     </div>
