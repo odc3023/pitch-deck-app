@@ -1,11 +1,8 @@
 [phases.setup]
-nixpkgs = ["nodejs_20", "yarn"]
-
-[phases.install]
-cmds = ["yarn install"]
+nixPkgs = ["nodejs_20", "npm"]
 
 [phases.build]
-cmds = ["yarn build"]
+cmds = ["npm run build"]
 
 [phases.start]
-cmds = ["yarn start:dev"]
+cmd = "npm run start"
