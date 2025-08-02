@@ -1,4 +1,5 @@
-Pitch Deck Frontend
+**Pitch Deck Frontend**
+---
 This is the frontend for the AI-powered pitch deck platform, built with React, Vite, Firebase Auth, and Tailwind CSS. It provides an intuitive interface for creating, editing, and managing AI-generated pitch decks with real-time collaboration features.
 
 ---
